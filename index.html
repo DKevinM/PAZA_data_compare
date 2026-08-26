@@ -55,23 +55,26 @@
     };
 
     // 1) load station & parameter lists
+    // Was querying aqhi_data (13M+ rows, no ordering) for distinct station
+    // names via a 5000-row sample - PostgREST caps responses at 1000 rows
+    // regardless of the requested limit, so this only ever saw an arbitrary
+    // slice of ~67 stations and silently dropped others (e.g. Grande
+    // Prairie - Henry Pirker) depending on row order. The small `stations`
+    // table (96 rows, one row per station) is the actual canonical list.
     const { data: stationData, error: stationErr } = await supabase
-      .from("aqhi_data")
+      .from("stations")
       .select("StationName")
-      .neq("StationName", "")
-      .limit(5000);
+      .neq("StationName", "");
     if (stationErr) console.error(stationErr);
 
     const stations = [...new Set((stationData || []).map(d => d.StationName))].sort();
 
-    const { data: paramData, error: paramErr } = await supabase
-      .from("aqhi_data")
-      .select("ParameterName")
-      .neq("ParameterName", "")
-      .limit(5000);
-    if (paramErr) console.error(paramErr);
-
-    const parameters = [...new Set((paramData || []).map(d => d.ParameterName))].sort();
+    // Same truncated-sample bug as the station list above - and there's no
+    // small canonical "parameters" table to fall back on, but the page
+    // already hardcodes the complete, correct parameter vocabulary above
+    // (unitsLookup) for labeling, so derive the dropdown from that instead
+    // of querying aqhi_data at all.
+    const parameters = Object.keys(unitsLookup).sort();
 
     // 2) populate dropdowns
     const stationDropdown = document.getElementById("stationDropdown");
